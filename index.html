@@ -4,8 +4,736 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>化学元素AR展示</title>
-    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <!-- 多重CDN备用方案 -->
+    <script>
+        // 动态加载A-Frame，多重备用
+        function loadAframe() {
+            const aframeUrls = [
+                'https://cdn.bootcdn.net/ajax/libs/aframe/1.6.0/aframe.min.js',
+                'https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-master.min.js',
+                'https://unpkg.com/aframe@1.6.0/dist/aframe-master.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/aframe/1.6.0/aframe.min.js'
+            ];
+            
+            function tryLoad(url, index) {
+                const script = document.createElement('script');
+                script.src = url;
+                script.onload = function() {
+                    console.log('A-Frame loaded from:', url);
+                    loadARjs();
+                };
+                script.onerror = function() {
+                    console.warn('Failed to load A-Frame from:', url);
+                    if (index < aframeUrls.length - 1) {
+                        tryLoad(aframeUrls[index + 1], index + 1);
+                    } else {
+                        alert('无法加载A-Frame库，请检查网络连接');
+                    }
+                };
+                document.head.appendChild(script);
+            }
+            
+            tryLoad(aframeUrls[0], 0);
+        }
+        
+        function loadARjs() {
+            const arjsUrls = [
+                'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@master/aframe/build/aframe-ar.js',
+                'https://unpkg.com/ar.js@3.4.7/aframe/build/aframe-ar.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/AR.js/3.4.7/aframe/build/aframe-ar.js'
+            ];
+            
+            function tryLoad(url, index) {
+                const script = document.createElement('script');
+                script.src = url;
+                script.onload = function() {
+                    console.log('AR.js loaded from:', url);
+                    // 所有库加载完成后初始化
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', initApp);
+                    } else {
+                        initApp();
+                    }
+                };
+                script.onerror = function() {
+                    console.warn('Failed to load AR.js from:', url);
+                    if (index < arjsUrls.length - 1) {
+                        tryLoad(arjsUrls[index + 1], index + 1);
+                    } else {
+                        alert('无法加载AR.js库，请检查网络连接');
+                    }
+                };
+                document.head.appendChild(script);
+            }
+            
+            tryLoad(arjsUrls[0], 0);
+        }
+        
+        function initApp() {
+            // 应用初始化代码将在这里
+            console.log('所有库加载完成，应用已初始化');
+            
+            // 等待DOM加载完成
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    initializeARApp();
+                });
+            } else {
+                initializeARApp();
+            }
+        }
+        
+        function initializeARApp() {
+            // 1. 隐藏加载动画
+            document.querySelector('a-scene').addEventListener('loaded', function () {
+                document.querySelector('.arjs-loader').style.display = 'none';
+                // 设置相机镜像
+                const scene = document.querySelector('a-scene');
+                if (scene.hasLoaded) {
+                    const arSystem = scene.systems['arjs'];
+                    if (arSystem) {
+                        arSystem.arProfile._arProfile.parameters.sourceType = 'webcam';
+                        arSystem.arProfile._arProfile.parameters.mirror = true;
+                        arSystem.arProfile.onResize();
+                    }
+                }
+            });
+
+            // 2. 元素名称映射
+            const markerNameMap = {
+                'H_1': '氢', 'He_2': '氦', 'Li_3': '锂', 'Be_4': '铍', 'B_5': '硼',
+                'C_6': '碳', 'N_7': '氮', 'O_8': '氧', 'F_9': '氟', 'Ne_10': '氖',
+                'Na_11': '钠', 'Mg_12': '镁', 'Al_13': '铝', 'Si_14': '硅', 'P_15': '磷',
+                'S_16': '硫', 'Cl_17': '氯', 'Ar_18': '氩', 'Ar_19': '氩', 'K_19': '钾', 'Ca_20': '钙'
+            };
+
+            // 组合逻辑
+            let naFound = false, clFound = false, mgFound = false, oFound = false;
+            let h1Found = false, h2Found = false, o2Found = false, cl2Found = false;
+            let naMarker, clMarker, mgMarker, oMarker, h1Marker, h2Marker, o2Marker, cl2Marker;
+            let naEntity, clEntity, mgEntity, oEntity, h1Entity, h2Entity, o2Entity, cl2Entity;
+            let naclModel, naclModel1, mgoModel, mgoModel1, h2oModel, h2oModel1;
+            let h2Model, o2Model, cl2Model;
+
+            // 记录当前是否处于组合状态
+            let isNaClCombo = false, isMgOCombo = false, isH2OCombo = false, isH2Combo = false, isO2Combo = false, isCl2Combo = false;
+            let currentNaClModel = null, currentMgOModel = null, currentH2OModel = null;
+
+            // 获取所有需要的实体
+            naMarker = document.querySelector('a-marker[url="patt_files/Na_11.patt"]');
+            clMarker = document.querySelector('a-marker[url="patt_files/Cl_17.patt"]');
+            mgMarker = document.querySelector('a-marker[url="patt_files/Mg_12.patt"]');
+            oMarker = document.querySelector('a-marker[url="patt_files/O_8.patt"]');
+            h1Marker = document.querySelector('a-marker[url="patt_files/H_1.patt"]');
+            h2Marker = document.querySelector('a-marker[url="patt_files/H_2_1.patt"]');
+            o2Marker = document.querySelector('a-marker[url="patt_files/O_2_8.patt"]');
+            cl2Marker = document.querySelector('a-marker[url="patt_files/Cl_2_17.patt"]');
+            
+            naEntity = document.getElementById('na-entity');
+            clEntity = document.getElementById('cl-entity');
+            mgEntity = document.getElementById('mg-entity');
+            oEntity = document.getElementById('o-entity');
+            h1Entity = document.getElementById('h1-entity');
+            h2Entity = document.getElementById('h2-entity');
+            o2Entity = document.getElementById('o2-entity');
+            cl2Entity = document.getElementById('cl2-entity');
+            
+            naclModel = document.getElementById('nacl-model');
+            naclModel1 = document.getElementById('nacl-model-1');
+            mgoModel = document.getElementById('mgo-model');
+            mgoModel1 = document.getElementById('mgo-model-1');
+            h2oModel = document.getElementById('h2o-model');
+            h2oModel1 = document.getElementById('h2o-model-1');
+            h2Model = document.getElementById('h2-model');
+            o2Model = document.getElementById('o2-model');
+            cl2Model = document.getElementById('cl2-model');
+
+            // 添加文字提示相关变量和函数
+            let currentTimeout = null;
+            let nextTimeout = null;
+
+            function showElementInfo(message, duration, nextMessage = null, nextDuration = null) {
+                const elementInfo = document.getElementById('element-info');
+                
+                // 清除现有的定时器
+                if (currentTimeout) {
+                    clearTimeout(currentTimeout);
+                }
+                if (nextTimeout) {
+                    clearTimeout(nextTimeout);
+                }
+
+                // 显示当前消息
+                elementInfo.textContent = message;
+                elementInfo.style.display = 'block';
+
+                // 设置当前消息的消失时间
+                currentTimeout = setTimeout(() => {
+                    if (!nextMessage) {
+                        elementInfo.style.display = 'none';
+                    }
+                    currentTimeout = null;
+                }, duration * 1000);
+
+                // 如果有下一条消息，设置下一条消息的显示和消失
+                if (nextMessage) {
+                    nextTimeout = setTimeout(() => {
+                        elementInfo.textContent = nextMessage;
+                        setTimeout(() => {
+                            elementInfo.style.display = 'none';
+                            nextTimeout = null;
+                        }, nextDuration * 1000);
+                    }, duration * 1000);
+                }
+            }
+
+            // 更新反馈信息
+            function updateFeedback() {
+                const feedback = document.getElementById('feedback');
+                let text = '';
+                
+                if (isNaClCombo) {
+                    text += 'Na元素和Cl元素可以组合成NaCl！';
+                }
+                if (isMgOCombo) {
+                    if (text) text += '\n';
+                    text += 'Mg元素和O元素可以组合成MgO！';
+                }
+                if (isH2OCombo) {
+                    if (text) text += '\n';
+                    text += '2个H元素和O元素可以组合成H2O！';
+                }
+                if (isH2Combo) {
+                    if (text) text += '\n';
+                    text += '2个H元素可以组合成H2！';
+                }
+                if (isO2Combo) {
+                    if (text) text += '\n';
+                    text += '2个O元素可以组合成O2！';
+                }
+                if (isCl2Combo) {
+                    if (text) text += '\n';
+                    text += '2个Cl元素可以组合成Cl2！';
+                }
+                
+                if (!text) {
+                    if (naFound) text += '识别到：钠元素';
+                    if (clFound) text += (text ? '、' : '识别到：') + '氯元素';
+                    if (mgFound) text += (text ? '、' : '识别到：') + '镁元素';
+                    if (oFound) text += (text ? '、' : '识别到：') + '氧元素';
+                    if (h1Found || h2Found) text += (text ? '、' : '识别到：') + '氢元素';
+                    if (o2Found) text += (text ? '、' : '识别到：') + '氧元素';
+                    if (cl2Found) text += (text ? '、' : '识别到：') + '氯元素';
+                }
+                
+                feedback.innerText = text;
+                feedback.style.display = text ? 'block' : 'none';
+            }
+
+            // 监听所有marker的检测事件
+            naMarker.addEventListener('markerFound', function() {
+                naFound = true;
+                if (!isNaClCombo) naEntity.setAttribute('visible', 'true');
+                updateFeedback();
+            });
+            naMarker.addEventListener('markerLost', function() {
+                naFound = false;
+                naEntity.setAttribute('visible', 'false');
+                if (isNaClCombo) {
+                    naclModel.setAttribute('visible', 'false');
+                    isNaClCombo = false;
+                }
+                updateFeedback();
+            });
+            clMarker.addEventListener('markerFound', function() {
+                clFound = true;
+                if (!isNaClCombo) clEntity.setAttribute('visible', 'true');
+                updateFeedback();
+            });
+            clMarker.addEventListener('markerLost', function() {
+                clFound = false;
+                clEntity.setAttribute('visible', 'false');
+                if (isNaClCombo) {
+                    naclModel.setAttribute('visible', 'false');
+                    isNaClCombo = false;
+                }
+                updateFeedback();
+            });
+
+            h1Marker.addEventListener('markerFound', function() {
+                h1Found = true;
+                if (!isH2OCombo && !isH2Combo) {
+                    h1Entity.setAttribute('visible', 'true');
+                    showElementInfo(
+                        "这是：氢元素！在元素周期表中位于第一位，符号为 H。氢原子由一个质子和一个电子组成，是结构最简单的原子。",
+                        10,
+                        "试试再拿一张氢元素和他放在一起会发生什么！",
+                        5
+                    );
+                }
+                updateFeedback();
+            });
+            h1Marker.addEventListener('markerLost', function() {
+                h1Found = false;
+                h1Entity.setAttribute('visible', 'false');
+                if (isH2OCombo) {
+                    showH2O(false);
+                }
+                updateFeedback();
+            });
+
+            h2Marker.addEventListener('markerFound', function() {
+                h2Found = true;
+                if (!isH2OCombo && !isH2Combo) {
+                    h2Entity.setAttribute('visible', 'true');
+                    showElementInfo(
+                        "这是：氢元素！在元素周期表中位于第一位，符号为 H。氢原子由一个质子和一个电子组成，是结构最简单的原子。",
+                        10,
+                        "试试再拿一张氢元素和他放在一起会发生什么！",
+                        5
+                    );
+                }
+                updateFeedback();
+            });
+            h2Marker.addEventListener('markerLost', function() {
+                h2Found = false;
+                h2Entity.setAttribute('visible', 'false');
+                if (isH2OCombo) {
+                    showH2O(false);
+                }
+                updateFeedback();
+            });
+
+            mgMarker.addEventListener('markerFound', function() {
+                mgFound = true;
+                if (!isMgOCombo) {
+                    mgEntity.setAttribute('visible', 'true');
+                }
+                updateFeedback();
+            });
+            mgMarker.addEventListener('markerLost', function() {
+                mgFound = false;
+                mgEntity.setAttribute('visible', 'false');
+                if (isMgOCombo) {
+                    mgoModel.setAttribute('visible', 'false');
+                    isMgOCombo = false;
+                }
+                updateFeedback();
+            });
+
+            oMarker.addEventListener('markerFound', function() {
+                oFound = true;
+                if (!isMgOCombo && !isH2OCombo) {
+                    oEntity.setAttribute('visible', 'true');
+                }
+                updateFeedback();
+            });
+            oMarker.addEventListener('markerLost', function() {
+                oFound = false;
+                oEntity.setAttribute('visible', 'false');
+                if (isMgOCombo) {
+                    mgoModel.setAttribute('visible', 'false');
+                    isMgOCombo = false;
+                }
+                if (isH2OCombo) {
+                    showH2O(false);
+                }
+                updateFeedback();
+            });
+
+            o2Marker.addEventListener('markerFound', function() {
+                o2Found = true;
+                if (!isO2Combo) o2Entity.setAttribute('visible', 'true');
+                updateFeedback();
+            });
+            o2Marker.addEventListener('markerLost', function() {
+                o2Found = false;
+                o2Entity.setAttribute('visible', 'false');
+                if (isO2Combo) {
+                    o2Model.setAttribute('visible', 'false');
+                    isO2Combo = false;
+                }
+                updateFeedback();
+            });
+
+            cl2Marker.addEventListener('markerFound', function() {
+                cl2Found = true;
+                if (!isCl2Combo) cl2Entity.setAttribute('visible', 'true');
+                updateFeedback();
+            });
+            cl2Marker.addEventListener('markerLost', function() {
+                cl2Found = false;
+                cl2Entity.setAttribute('visible', 'false');
+                if (isCl2Combo) {
+                    cl2Model.setAttribute('visible', 'false');
+                    isCl2Combo = false;
+                }
+                updateFeedback();
+            });
+
+            function showH2O(show, midPosWorld = null) {
+                if (show) {
+                    h1Entity.setAttribute('visible', 'false');
+                    h2Entity.setAttribute('visible', 'false');
+                    oEntity.setAttribute('visible', 'false');
+                    
+                    if (midPosWorld) {
+                        const camera = document.querySelector('[camera]').object3D;
+                        const cameraPos = new THREE.Vector3();
+                        camera.getWorldPosition(cameraPos);
+                        const distToCamera = midPosWorld.distanceTo(cameraPos);
+                        
+                        if (distToCamera < 20) {
+                            if (currentH2OModel !== 'h2o1') {
+                                h2oModel.setAttribute('visible', 'false');
+                                h2oModel1.setAttribute('visible', 'true');
+                                currentH2OModel = 'h2o1';
+                                showElementInfo("太棒啦！H2O原来就是我们生活中的水！", 15);
+                            }
+                            if (midPosWorld) {
+                                const scene = document.querySelector('a-scene').object3D;
+                                const midPosLocal = midPosWorld.clone();
+                                scene.worldToLocal(midPosLocal);
+                                h2oModel1.object3D.position.copy(midPosLocal);
+                            }
+                        } else {
+                            if (currentH2OModel !== 'h2o') {
+                                h2oModel.setAttribute('visible', 'true');
+                                h2oModel1.setAttribute('visible', 'false');
+                                currentH2OModel = 'h2o';
+                                showElementInfo("哇！出现了H2O分子呢，让我们的镜头离得更近一点，看看它是什么把！", 5);
+                            }
+                            if (midPosWorld) {
+                                const scene = document.querySelector('a-scene').object3D;
+                                const midPosLocal = midPosWorld.clone();
+                                scene.worldToLocal(midPosLocal);
+                                h2oModel.object3D.position.copy(midPosLocal);
+                            }
+                        }
+                    }
+                    
+                    isH2OCombo = true;
+                    updateFeedback();
+                } else {
+                    if (h1Found) h1Entity.setAttribute('visible', 'true');
+                    if (h2Found) h2Entity.setAttribute('visible', 'true');
+                    if (oFound) oEntity.setAttribute('visible', 'true');
+                    h2oModel.setAttribute('visible', 'false');
+                    h2oModel1.setAttribute('visible', 'false');
+                    isH2OCombo = false;
+                    currentH2OModel = null;
+                    updateFeedback();
+                }
+            }
+
+            // 每帧检测元素距离
+            AFRAME.registerComponent('element-combo-check', {
+                tick: function () {
+                    // --- 距离可视化 ---
+                    const markerEntities = [
+                        {name: 'Na', entity: naEntity, found: naFound},
+                        {name: 'Cl', entity: clEntity, found: clFound},
+                        {name: 'Mg', entity: mgEntity, found: mgFound},
+                        {name: 'O', entity: oEntity, found: oFound}
+                    ];
+                    let info = '';
+                    let count = 0;
+                    const foundMarkers = markerEntities.filter(m => m.found && m.entity && m.entity.object3D.visible);
+                    if (foundMarkers.length >= 2) {
+                        for (let i = 0; i < foundMarkers.length; i++) {
+                            for (let j = i + 1; j < foundMarkers.length; j++) {
+                                const pos1 = new THREE.Vector3();
+                                const pos2 = new THREE.Vector3();
+                                foundMarkers[i].entity.object3D.getWorldPosition(pos1);
+                                foundMarkers[j].entity.object3D.getWorldPosition(pos2);
+                                const dist = pos1.distanceTo(pos2);
+                                info += `${foundMarkers[i].name} - ${foundMarkers[j].name} 距离: ${dist.toFixed(2)}<br/>`;
+                                count++;
+                            }
+                        }
+                    }
+                    const distDiv = document.getElementById('distance-info');
+                    if (count > 0) {
+                        distDiv.innerHTML = info;
+                        distDiv.style.display = 'block';
+                    } else {
+                        distDiv.innerHTML = '';
+                        distDiv.style.display = 'none';
+                    }
+
+                    // --- H2O组合逻辑 ---
+                    if (h1Found && h2Found && oFound) {
+                        const h1Obj = h1Entity.object3D;
+                        const h2Obj = h2Entity.object3D;
+                        const oObj = oEntity.object3D;
+                        
+                        const h1Pos = new THREE.Vector3();
+                        const h2Pos = new THREE.Vector3();
+                        const oPos = new THREE.Vector3();
+                        h1Obj.getWorldPosition(h1Pos);
+                        h2Obj.getWorldPosition(h2Pos);
+                        oObj.getWorldPosition(oPos);
+                        
+                        const distH1O = h1Pos.distanceTo(oPos);
+                        const distH2O = h2Pos.distanceTo(oPos);
+
+                        // 只有三张卡都出现且两张H分别与O距离都小于阈值才组合
+                        const isH2OComboPossible = (distH1O < 3 && distH2O < 3);
+
+                        if (isH2OComboPossible) {
+                            // 计算三者中心点
+                            const midPos = new THREE.Vector3()
+                                .addVectors(h1Pos, h2Pos)
+                                .add(oPos)
+                                .multiplyScalar(1/3);
+                            midPos.y -= 0.5;
+                            
+                            if (!isH2OCombo) {
+                                showH2O(true, midPos);
+                            } else {
+                                const camera = document.querySelector('[camera]').object3D;
+                                const cameraPos = new THREE.Vector3();
+                                camera.getWorldPosition(cameraPos);
+                                const distToCamera = midPos.distanceTo(cameraPos);
+                                
+                                if (distToCamera < 20 && currentH2OModel === 'h2o1') {
+                                    const scene = document.querySelector('a-scene').object3D;
+                                    const midPosLocal = midPos.clone();
+                                    scene.worldToLocal(midPosLocal);
+                                    h2oModel1.object3D.position.copy(midPosLocal);
+                                } else if (distToCamera >= 20 && currentH2OModel === 'h2o') {
+                                    const scene = document.querySelector('a-scene').object3D;
+                                    const midPosLocal = midPos.clone();
+                                    scene.worldToLocal(midPosLocal);
+                                    h2oModel.object3D.position.copy(midPosLocal);
+                                }
+                            }
+                        } else if (isH2OCombo) {
+                            showH2O(false);
+                        }
+                    }
+
+                    // --- NaCl组合逻辑 ---
+                    if (naFound && clFound) {
+                        const naPos = new THREE.Vector3();
+                        const clPos = new THREE.Vector3();
+                        naEntity.object3D.getWorldPosition(naPos);
+                        clEntity.object3D.getWorldPosition(clPos);
+                        const distNaCl = naPos.distanceTo(clPos);
+                        if (distNaCl < 3) {
+                            // 计算中点
+                            const midPos = new THREE.Vector3().addVectors(naPos, clPos).multiplyScalar(0.5);
+                            const scene = document.querySelector('a-scene').object3D;
+                            const midPosLocal = midPos.clone();
+                            scene.worldToLocal(midPosLocal);
+                            // 计算到相机距离
+                            const camera = document.querySelector('[camera]').object3D;
+                            const cameraPos = new THREE.Vector3();
+                            camera.getWorldPosition(cameraPos);
+                            const distToCamera = midPos.distanceTo(cameraPos);
+                            if (distToCamera < 20) {
+                                naclModel.setAttribute('visible', 'false');
+                                naclModel1.setAttribute('visible', 'true');
+                                naclModel1.object3D.position.copy(midPosLocal);
+                            } else {
+                                naclModel.setAttribute('visible', 'true');
+                                naclModel.object3D.position.copy(midPosLocal);
+                                naclModel1.setAttribute('visible', 'false');
+                            }
+                            naEntity.setAttribute('visible', 'false');
+                            clEntity.setAttribute('visible', 'false');
+                            isNaClCombo = true;
+                        } else if (isNaClCombo) {
+                            naclModel.setAttribute('visible', 'false');
+                            naclModel1.setAttribute('visible', 'false');
+                            naEntity.setAttribute('visible', naFound ? 'true' : 'false');
+                            clEntity.setAttribute('visible', clFound ? 'true' : 'false');
+                            isNaClCombo = false;
+                        }
+                    } else if (isNaClCombo) {
+                        naclModel.setAttribute('visible', 'false');
+                        naclModel1.setAttribute('visible', 'false');
+                        naEntity.setAttribute('visible', naFound ? 'true' : 'false');
+                        clEntity.setAttribute('visible', clFound ? 'true' : 'false');
+                        isNaClCombo = false;
+                    }
+
+                    // --- MgO组合逻辑 ---
+                    if (mgFound && oFound) {
+                        const mgPos = new THREE.Vector3();
+                        const oPos = new THREE.Vector3();
+                        mgEntity.object3D.getWorldPosition(mgPos);
+                        oEntity.object3D.getWorldPosition(oPos);
+                        const distMgO = mgPos.distanceTo(oPos);
+                        if (distMgO < 3) {
+                            // 计算中点
+                            const midPos = new THREE.Vector3().addVectors(mgPos, oPos).multiplyScalar(0.5);
+                            // 转换为本地坐标
+                            const scene = document.querySelector('a-scene').object3D;
+                            const midPosLocal = midPos.clone();
+                            scene.worldToLocal(midPosLocal);
+                            // 计算到相机距离
+                            const camera = document.querySelector('[camera]').object3D;
+                            const cameraPos = new THREE.Vector3();
+                            camera.getWorldPosition(cameraPos);
+                            const distToCamera = midPos.distanceTo(cameraPos);
+                            if (distToCamera < 20) {
+                                // 显示MgO_1，隐藏MgO
+                                mgoModel.setAttribute('visible', 'false');
+                                mgoModel1.setAttribute('visible', 'true');
+                                mgoModel1.object3D.position.copy(midPosLocal);
+                                currentMgOModel = 'mgo1';
+                            } else {
+                                // 显示MgO，隐藏MgO_1
+                                mgoModel.setAttribute('visible', 'true');
+                                mgoModel.object3D.position.copy(midPosLocal);
+                                mgoModel1.setAttribute('visible', 'false');
+                                currentMgOModel = 'mgo';
+                            }
+                            mgEntity.setAttribute('visible', 'false');
+                            oEntity.setAttribute('visible', 'false');
+                            isMgOCombo = true;
+                        } else if (isMgOCombo) {
+                            mgoModel.setAttribute('visible', 'false');
+                            mgoModel1.setAttribute('visible', 'false');
+                            mgEntity.setAttribute('visible', 'true');
+                            oEntity.setAttribute('visible', 'true');
+                            isMgOCombo = false;
+                            currentMgOModel = null;
+                        }
+                    } else if (isMgOCombo) {
+                        mgoModel.setAttribute('visible', 'false');
+                        mgoModel1.setAttribute('visible', 'false');
+                        mgEntity.setAttribute('visible', mgFound ? 'true' : 'false');
+                        oEntity.setAttribute('visible', oFound ? 'true' : 'false');
+                        isMgOCombo = false;
+                        currentMgOModel = null;
+                    }
+
+                    // --- H2组合逻辑 ---
+                    if (h1Found && h2Found) {
+                        const h1Pos = new THREE.Vector3();
+                        const h2Pos = new THREE.Vector3();
+                        h1Entity.object3D.getWorldPosition(h1Pos);
+                        h2Entity.object3D.getWorldPosition(h2Pos);
+                        const distH1H2 = h1Pos.distanceTo(h2Pos);
+                        
+                        if (distH1H2 < 3.5) {
+                            const midPos = new THREE.Vector3().addVectors(h1Pos, h2Pos).multiplyScalar(0.5);
+                            const scene = document.querySelector('a-scene').object3D;
+                            const midPosLocal = midPos.clone();
+                            scene.worldToLocal(midPosLocal);
+                            
+                            h2Model.object3D.position.copy(midPosLocal);
+                            h2Model.setAttribute('visible', 'true');
+                            h1Entity.setAttribute('visible', 'false');
+                            h2Entity.setAttribute('visible', 'false');
+                            if (!isH2Combo) {
+                                showElementInfo(
+                                    "太棒了！2个H元素可以组成H2，也就是氢气。在标准状况下，氢气是一种无色、无味、无臭的气体，密度非常小，是最轻的气体，其难溶于水。",
+                                    15,
+                                    "试试再将一个O原子放在他们中间，看看会发生什么呢？",
+                                    5
+                                );
+                            }
+                            isH2Combo = true;
+                        } else if (isH2Combo) {
+                            h2Model.setAttribute('visible', 'false');
+                            h1Entity.setAttribute('visible', 'true');
+                            h2Entity.setAttribute('visible', 'true');
+                            isH2Combo = false;
+                        }
+                    } else if (isH2Combo) {
+                        h2Model.setAttribute('visible', 'false');
+                        h1Entity.setAttribute('visible', h1Found ? 'true' : 'false');
+                        h2Entity.setAttribute('visible', h2Found ? 'true' : 'false');
+                        isH2Combo = false;
+                    }
+
+                    // --- O2组合逻辑 ---
+                    if (oFound && o2Found) {
+                        const oPos = new THREE.Vector3();
+                        const o2Pos = new THREE.Vector3();
+                        oEntity.object3D.getWorldPosition(oPos);
+                        o2Entity.object3D.getWorldPosition(o2Pos);
+                        const distOO2 = oPos.distanceTo(o2Pos);
+                        
+                        if (distOO2 < 3.5) {
+                            // 计算中点
+                            const midPos = new THREE.Vector3().addVectors(oPos, o2Pos).multiplyScalar(0.5);
+                            const scene = document.querySelector('a-scene').object3D;
+                            const midPosLocal = midPos.clone();
+                            scene.worldToLocal(midPosLocal);
+                            
+                            o2Model.object3D.position.copy(midPosLocal);
+                            o2Model.setAttribute('visible', 'true');
+                            oEntity.setAttribute('visible', 'false');
+                            o2Entity.setAttribute('visible', 'false');
+                            isO2Combo = true;
+                        } else if (isO2Combo) {
+                            o2Model.setAttribute('visible', 'false');
+                            oEntity.setAttribute('visible', 'true');
+                            o2Entity.setAttribute('visible', 'true');
+                            isO2Combo = false;
+                        }
+                    } else if (isO2Combo) {
+                        o2Model.setAttribute('visible', 'false');
+                        oEntity.setAttribute('visible', oFound ? 'true' : 'false');
+                        o2Entity.setAttribute('visible', o2Found ? 'true' : 'false');
+                        isO2Combo = false;
+                    }
+
+                    // --- Cl2组合逻辑 ---
+                    if (clFound && cl2Found) {
+                        const clPos = new THREE.Vector3();
+                        const cl2Pos = new THREE.Vector3();
+                        clEntity.object3D.getWorldPosition(clPos);
+                        cl2Entity.object3D.getWorldPosition(cl2Pos);
+                        const distClCl2 = clPos.distanceTo(cl2Pos);
+                        
+                        if (distClCl2 < 3.5) {
+                            // 计算中点
+                            const midPos = new THREE.Vector3().addVectors(clPos, cl2Pos).multiplyScalar(0.5);
+                            const scene = document.querySelector('a-scene').object3D;
+                            const midPosLocal = midPos.clone();
+                            scene.worldToLocal(midPosLocal);
+                            
+                            cl2Model.object3D.position.copy(midPosLocal);
+                            cl2Model.setAttribute('visible', 'true');
+                            clEntity.setAttribute('visible', 'false');
+                            cl2Entity.setAttribute('visible', 'false');
+                            isCl2Combo = true;
+                        } else if (isCl2Combo) {
+                            cl2Model.setAttribute('visible', 'false');
+                            clEntity.setAttribute('visible', 'true');
+                            cl2Entity.setAttribute('visible', cl2Found ? 'true' : 'false');
+                            isCl2Combo = false;
+                        }
+                    } else if (isCl2Combo) {
+                        cl2Model.setAttribute('visible', 'false');
+                        clEntity.setAttribute('visible', clFound ? 'true' : 'false');
+                        cl2Entity.setAttribute('visible', cl2Found ? 'true' : 'false');
+                        isCl2Combo = false;
+                    }
+                }
+            });
+            document.querySelector('a-scene').setAttribute('element-combo-check', '');
+
+            // 添加返回函数
+            window.goBack = function() {
+                if (window.wx && window.wx.miniProgram) {
+                    // 如果在小程序环境中，调用小程序的返回方法
+                    window.wx.miniProgram.navigateBack();
+                } else {
+                    // 如果在普通浏览器中，使用历史返回
+                    window.history.back();
+                }
+            };
+        }
+        
+        // 开始加载
+        loadAframe();
+    </script>
     <style>
         .arjs-loader {
             height: 100%;
@@ -203,652 +931,5 @@
 
         <a-entity camera></a-entity>
     </a-scene>
-    <script>
-      // 1. 隐藏加载动画
-      document.querySelector('a-scene').addEventListener('loaded', function () {
-        document.querySelector('.arjs-loader').style.display = 'none';
-        // 设置相机镜像
-        const scene = document.querySelector('a-scene');
-        if (scene.hasLoaded) {
-          const arSystem = scene.systems['arjs'];
-          if (arSystem) {
-            arSystem.arProfile._arProfile.parameters.sourceType = 'webcam';
-            arSystem.arProfile._arProfile.parameters.mirror = true;
-            arSystem.arProfile.onResize();
-          }
-        }
-      });
-
-      // 2. 元素名称映射
-      const markerNameMap = {
-        'H_1': '氢', 'He_2': '氦', 'Li_3': '锂', 'Be_4': '铍', 'B_5': '硼',
-        'C_6': '碳', 'N_7': '氮', 'O_8': '氧', 'F_9': '氟', 'Ne_10': '氖',
-        'Na_11': '钠', 'Mg_12': '镁', 'Al_13': '铝', 'Si_14': '硅', 'P_15': '磷',
-        'S_16': '硫', 'Cl_17': '氯', 'Ar_18': '氩', 'Ar_19': '氩', 'K_19': '钾', 'Ca_20': '钙'
-      };
-
-      // 组合逻辑
-      let naFound = false, clFound = false, mgFound = false, oFound = false;
-      let h1Found = false, h2Found = false, o2Found = false, cl2Found = false;
-      let naMarker, clMarker, mgMarker, oMarker, h1Marker, h2Marker, o2Marker, cl2Marker;
-      let naEntity, clEntity, mgEntity, oEntity, h1Entity, h2Entity, o2Entity, cl2Entity;
-      let naclModel, naclModel1, mgoModel, mgoModel1, h2oModel, h2oModel1;
-      let h2Model, o2Model, cl2Model;
-
-      // 记录当前是否处于组合状态
-      let isNaClCombo = false, isMgOCombo = false, isH2OCombo = false, isH2Combo = false, isO2Combo = false, isCl2Combo = false;
-      let currentNaClModel = null, currentMgOModel = null, currentH2OModel = null;
-
-      // 获取所有需要的实体
-      naMarker = document.querySelector('a-marker[url="patt_files/Na_11.patt"]');
-      clMarker = document.querySelector('a-marker[url="patt_files/Cl_17.patt"]');
-      mgMarker = document.querySelector('a-marker[url="patt_files/Mg_12.patt"]');
-      oMarker = document.querySelector('a-marker[url="patt_files/O_8.patt"]');
-      h1Marker = document.querySelector('a-marker[url="patt_files/H_1.patt"]');
-      h2Marker = document.querySelector('a-marker[url="patt_files/H_2_1.patt"]');
-      o2Marker = document.querySelector('a-marker[url="patt_files/O_2_8.patt"]');
-      cl2Marker = document.querySelector('a-marker[url="patt_files/Cl_2_17.patt"]');
-      
-      naEntity = document.getElementById('na-entity');
-      clEntity = document.getElementById('cl-entity');
-      mgEntity = document.getElementById('mg-entity');
-      oEntity = document.getElementById('o-entity');
-      h1Entity = document.getElementById('h1-entity');
-      h2Entity = document.getElementById('h2-entity');
-      o2Entity = document.getElementById('o2-entity');
-      cl2Entity = document.getElementById('cl2-entity');
-      
-      naclModel = document.getElementById('nacl-model');
-      naclModel1 = document.getElementById('nacl-model-1');
-      mgoModel = document.getElementById('mgo-model');
-      mgoModel1 = document.getElementById('mgo-model-1');
-      h2oModel = document.getElementById('h2o-model');
-      h2oModel1 = document.getElementById('h2o-model-1');
-      h2Model = document.getElementById('h2-model');
-      o2Model = document.getElementById('o2-model');
-      cl2Model = document.getElementById('cl2-model');
-
-      // 添加文字提示相关变量和函数
-      let currentTimeout = null;
-      let nextTimeout = null;
-
-      function showElementInfo(message, duration, nextMessage = null, nextDuration = null) {
-        const elementInfo = document.getElementById('element-info');
-        
-        // 清除现有的定时器
-        if (currentTimeout) {
-          clearTimeout(currentTimeout);
-        }
-        if (nextTimeout) {
-          clearTimeout(nextTimeout);
-        }
-
-        // 显示当前消息
-        elementInfo.textContent = message;
-        elementInfo.style.display = 'block';
-
-        // 设置当前消息的消失时间
-        currentTimeout = setTimeout(() => {
-          if (!nextMessage) {
-            elementInfo.style.display = 'none';
-          }
-          currentTimeout = null;
-        }, duration * 1000);
-
-        // 如果有下一条消息，设置下一条消息的显示和消失
-        if (nextMessage) {
-          nextTimeout = setTimeout(() => {
-            elementInfo.textContent = nextMessage;
-            setTimeout(() => {
-              elementInfo.style.display = 'none';
-              nextTimeout = null;
-            }, nextDuration * 1000);
-          }, duration * 1000);
-        }
-      }
-
-      // 更新反馈信息
-      function updateFeedback() {
-        const feedback = document.getElementById('feedback');
-        let text = '';
-        
-        if (isNaClCombo) {
-          text += 'Na元素和Cl元素可以组合成NaCl！';
-        }
-        if (isMgOCombo) {
-          if (text) text += '\n';
-          text += 'Mg元素和O元素可以组合成MgO！';
-        }
-        if (isH2OCombo) {
-          if (text) text += '\n';
-          text += '2个H元素和O元素可以组合成H2O！';
-        }
-        if (isH2Combo) {
-          if (text) text += '\n';
-          text += '2个H元素可以组合成H2！';
-        }
-        if (isO2Combo) {
-          if (text) text += '\n';
-          text += '2个O元素可以组合成O2！';
-        }
-        if (isCl2Combo) {
-          if (text) text += '\n';
-          text += '2个Cl元素可以组合成Cl2！';
-        }
-        
-        if (!text) {
-          if (naFound) text += '识别到：钠元素';
-          if (clFound) text += (text ? '、' : '识别到：') + '氯元素';
-          if (mgFound) text += (text ? '、' : '识别到：') + '镁元素';
-          if (oFound) text += (text ? '、' : '识别到：') + '氧元素';
-          if (h1Found || h2Found) text += (text ? '、' : '识别到：') + '氢元素';
-          if (o2Found) text += (text ? '、' : '识别到：') + '氧元素';
-          if (cl2Found) text += (text ? '、' : '识别到：') + '氯元素';
-        }
-        
-        feedback.innerText = text;
-        feedback.style.display = text ? 'block' : 'none';
-      }
-
-      // 监听所有marker的检测事件
-      naMarker.addEventListener('markerFound', function() {
-        naFound = true;
-        if (!isNaClCombo) naEntity.setAttribute('visible', 'true');
-        updateFeedback();
-      });
-      naMarker.addEventListener('markerLost', function() {
-        naFound = false;
-        naEntity.setAttribute('visible', 'false');
-        if (isNaClCombo) {
-          naclModel.setAttribute('visible', 'false');
-          isNaClCombo = false;
-        }
-        updateFeedback();
-      });
-      clMarker.addEventListener('markerFound', function() {
-        clFound = true;
-        if (!isNaClCombo) clEntity.setAttribute('visible', 'true');
-        updateFeedback();
-      });
-      clMarker.addEventListener('markerLost', function() {
-        clFound = false;
-        clEntity.setAttribute('visible', 'false');
-        if (isNaClCombo) {
-          naclModel.setAttribute('visible', 'false');
-          isNaClCombo = false;
-        }
-        updateFeedback();
-      });
-
-      h1Marker.addEventListener('markerFound', function() {
-        h1Found = true;
-        if (!isH2OCombo && !isH2Combo) {
-          h1Entity.setAttribute('visible', 'true');
-          showElementInfo(
-            "这是：氢元素！在元素周期表中位于第一位，符号为 H。氢原子由一个质子和一个电子组成，是结构最简单的原子。",
-            10,
-            "试试再拿一张氢元素和他放在一起会发生什么！",
-            5
-          );
-        }
-        updateFeedback();
-      });
-      h1Marker.addEventListener('markerLost', function() {
-        h1Found = false;
-        h1Entity.setAttribute('visible', 'false');
-        if (isH2OCombo) {
-          showH2O(false);
-        }
-        updateFeedback();
-      });
-
-      h2Marker.addEventListener('markerFound', function() {
-        h2Found = true;
-        if (!isH2OCombo && !isH2Combo) {
-          h2Entity.setAttribute('visible', 'true');
-          showElementInfo(
-            "这是：氢元素！在元素周期表中位于第一位，符号为 H。氢原子由一个质子和一个电子组成，是结构最简单的原子。",
-            10,
-            "试试再拿一张氢元素和他放在一起会发生什么！",
-            5
-          );
-        }
-        updateFeedback();
-      });
-      h2Marker.addEventListener('markerLost', function() {
-        h2Found = false;
-        h2Entity.setAttribute('visible', 'false');
-        if (isH2OCombo) {
-          showH2O(false);
-        }
-        updateFeedback();
-      });
-
-      mgMarker.addEventListener('markerFound', function() {
-        mgFound = true;
-        if (!isMgOCombo) {
-          mgEntity.setAttribute('visible', 'true');
-        }
-        updateFeedback();
-      });
-      mgMarker.addEventListener('markerLost', function() {
-        mgFound = false;
-        mgEntity.setAttribute('visible', 'false');
-        if (isMgOCombo) {
-          mgoModel.setAttribute('visible', 'false');
-          isMgOCombo = false;
-        }
-        updateFeedback();
-      });
-
-      oMarker.addEventListener('markerFound', function() {
-        oFound = true;
-        if (!isMgOCombo && !isH2OCombo) {
-          oEntity.setAttribute('visible', 'true');
-        }
-        updateFeedback();
-      });
-      oMarker.addEventListener('markerLost', function() {
-        oFound = false;
-        oEntity.setAttribute('visible', 'false');
-        if (isMgOCombo) {
-          mgoModel.setAttribute('visible', 'false');
-          isMgOCombo = false;
-        }
-        if (isH2OCombo) {
-          showH2O(false);
-        }
-        updateFeedback();
-      });
-
-      o2Marker.addEventListener('markerFound', function() {
-        o2Found = true;
-        if (!isO2Combo) o2Entity.setAttribute('visible', 'true');
-        updateFeedback();
-      });
-      o2Marker.addEventListener('markerLost', function() {
-        o2Found = false;
-        o2Entity.setAttribute('visible', 'false');
-        if (isO2Combo) {
-          o2Model.setAttribute('visible', 'false');
-          isO2Combo = false;
-        }
-        updateFeedback();
-      });
-
-      cl2Marker.addEventListener('markerFound', function() {
-        cl2Found = true;
-        if (!isCl2Combo) cl2Entity.setAttribute('visible', 'true');
-        updateFeedback();
-      });
-      cl2Marker.addEventListener('markerLost', function() {
-        cl2Found = false;
-        cl2Entity.setAttribute('visible', 'false');
-        if (isCl2Combo) {
-          cl2Model.setAttribute('visible', 'false');
-          isCl2Combo = false;
-        }
-        updateFeedback();
-      });
-
-      function showH2O(show, midPosWorld = null) {
-        if (show) {
-          h1Entity.setAttribute('visible', 'false');
-          h2Entity.setAttribute('visible', 'false');
-          oEntity.setAttribute('visible', 'false');
-          
-          if (midPosWorld) {
-            const camera = document.querySelector('[camera]').object3D;
-            const cameraPos = new THREE.Vector3();
-            camera.getWorldPosition(cameraPos);
-            const distToCamera = midPosWorld.distanceTo(cameraPos);
-            
-            if (distToCamera < 20) {
-              if (currentH2OModel !== 'h2o1') {
-                h2oModel.setAttribute('visible', 'false');
-                h2oModel1.setAttribute('visible', 'true');
-                currentH2OModel = 'h2o1';
-                showElementInfo("太棒啦！H2O原来就是我们生活中的水！", 15);
-              }
-              if (midPosWorld) {
-                const scene = document.querySelector('a-scene').object3D;
-                const midPosLocal = midPosWorld.clone();
-                scene.worldToLocal(midPosLocal);
-                h2oModel1.object3D.position.copy(midPosLocal);
-              }
-            } else {
-              if (currentH2OModel !== 'h2o') {
-                h2oModel.setAttribute('visible', 'true');
-                h2oModel1.setAttribute('visible', 'false');
-                currentH2OModel = 'h2o';
-                showElementInfo("哇！出现了H2O分子呢，让我们的镜头离得更近一点，看看它是什么把！", 5);
-              }
-              if (midPosWorld) {
-                const scene = document.querySelector('a-scene').object3D;
-                const midPosLocal = midPosWorld.clone();
-                scene.worldToLocal(midPosLocal);
-                h2oModel.object3D.position.copy(midPosLocal);
-              }
-            }
-          }
-          
-          isH2OCombo = true;
-          updateFeedback();
-        } else {
-          if (h1Found) h1Entity.setAttribute('visible', 'true');
-          if (h2Found) h2Entity.setAttribute('visible', 'true');
-          if (oFound) oEntity.setAttribute('visible', 'true');
-          h2oModel.setAttribute('visible', 'false');
-          h2oModel1.setAttribute('visible', 'false');
-          isH2OCombo = false;
-          currentH2OModel = null;
-          updateFeedback();
-        }
-      }
-
-      // 每帧检测元素距离
-      AFRAME.registerComponent('element-combo-check', {
-        tick: function () {
-          // --- 距离可视化 ---
-          const markerEntities = [
-            {name: 'Na', entity: naEntity, found: naFound},
-            {name: 'Cl', entity: clEntity, found: clFound},
-            {name: 'Mg', entity: mgEntity, found: mgFound},
-            {name: 'O', entity: oEntity, found: oFound}
-          ];
-          let info = '';
-          let count = 0;
-          const foundMarkers = markerEntities.filter(m => m.found && m.entity && m.entity.object3D.visible);
-          if (foundMarkers.length >= 2) {
-            for (let i = 0; i < foundMarkers.length; i++) {
-              for (let j = i + 1; j < foundMarkers.length; j++) {
-                const pos1 = new THREE.Vector3();
-                const pos2 = new THREE.Vector3();
-                foundMarkers[i].entity.object3D.getWorldPosition(pos1);
-                foundMarkers[j].entity.object3D.getWorldPosition(pos2);
-                const dist = pos1.distanceTo(pos2);
-                info += `${foundMarkers[i].name} - ${foundMarkers[j].name} 距离: ${dist.toFixed(2)}<br/>`;
-                count++;
-              }
-            }
-          }
-          const distDiv = document.getElementById('distance-info');
-          if (count > 0) {
-            distDiv.innerHTML = info;
-            distDiv.style.display = 'block';
-          } else {
-            distDiv.innerHTML = '';
-            distDiv.style.display = 'none';
-          }
-
-          // --- H2O组合逻辑 ---
-          if (h1Found && h2Found && oFound) {
-            const h1Obj = h1Entity.object3D;
-            const h2Obj = h2Entity.object3D;
-            const oObj = oEntity.object3D;
-            
-            const h1Pos = new THREE.Vector3();
-            const h2Pos = new THREE.Vector3();
-            const oPos = new THREE.Vector3();
-            h1Obj.getWorldPosition(h1Pos);
-            h2Obj.getWorldPosition(h2Pos);
-            oObj.getWorldPosition(oPos);
-            
-            const distH1O = h1Pos.distanceTo(oPos);
-            const distH2O = h2Pos.distanceTo(oPos);
-
-            // 只有三张卡都出现且两张H分别与O距离都小于阈值才组合
-            const isH2OComboPossible = (distH1O < 3 && distH2O < 3);
-
-            if (isH2OComboPossible) {
-              // 计算三者中心点
-              const midPos = new THREE.Vector3()
-                .addVectors(h1Pos, h2Pos)
-                .add(oPos)
-                .multiplyScalar(1/3);
-              midPos.y -= 0.5;
-              
-              if (!isH2OCombo) {
-                showH2O(true, midPos);
-              } else {
-                const camera = document.querySelector('[camera]').object3D;
-                const cameraPos = new THREE.Vector3();
-                camera.getWorldPosition(cameraPos);
-                const distToCamera = midPos.distanceTo(cameraPos);
-                
-                if (distToCamera < 20 && currentH2OModel === 'h2o1') {
-                  const scene = document.querySelector('a-scene').object3D;
-                  const midPosLocal = midPos.clone();
-                  scene.worldToLocal(midPosLocal);
-                  h2oModel1.object3D.position.copy(midPosLocal);
-                } else if (distToCamera >= 20 && currentH2OModel === 'h2o') {
-                  const scene = document.querySelector('a-scene').object3D;
-                  const midPosLocal = midPos.clone();
-                  scene.worldToLocal(midPosLocal);
-                  h2oModel.object3D.position.copy(midPosLocal);
-                }
-              }
-            } else if (isH2OCombo) {
-              showH2O(false);
-            }
-          }
-
-          // --- NaCl组合逻辑 ---
-          if (naFound && clFound) {
-            const naPos = new THREE.Vector3();
-            const clPos = new THREE.Vector3();
-            naEntity.object3D.getWorldPosition(naPos);
-            clEntity.object3D.getWorldPosition(clPos);
-            const distNaCl = naPos.distanceTo(clPos);
-            if (distNaCl < 3) {
-              // 计算中点
-              const midPos = new THREE.Vector3().addVectors(naPos, clPos).multiplyScalar(0.5);
-              const scene = document.querySelector('a-scene').object3D;
-              const midPosLocal = midPos.clone();
-              scene.worldToLocal(midPosLocal);
-              // 计算到相机距离
-              const camera = document.querySelector('[camera]').object3D;
-              const cameraPos = new THREE.Vector3();
-              camera.getWorldPosition(cameraPos);
-              const distToCamera = midPos.distanceTo(cameraPos);
-              if (distToCamera < 20) {
-                naclModel.setAttribute('visible', 'false');
-                naclModel1.setAttribute('visible', 'true');
-                naclModel1.object3D.position.copy(midPosLocal);
-              } else {
-                naclModel.setAttribute('visible', 'true');
-                naclModel.object3D.position.copy(midPosLocal);
-                naclModel1.setAttribute('visible', 'false');
-              }
-              naEntity.setAttribute('visible', 'false');
-              clEntity.setAttribute('visible', 'false');
-              isNaClCombo = true;
-            } else if (isNaClCombo) {
-              naclModel.setAttribute('visible', 'false');
-              naclModel1.setAttribute('visible', 'false');
-              naEntity.setAttribute('visible', naFound ? 'true' : 'false');
-              clEntity.setAttribute('visible', clFound ? 'true' : 'false');
-              isNaClCombo = false;
-            }
-          } else if (isNaClCombo) {
-            naclModel.setAttribute('visible', 'false');
-            naclModel1.setAttribute('visible', 'false');
-            naEntity.setAttribute('visible', naFound ? 'true' : 'false');
-            clEntity.setAttribute('visible', clFound ? 'true' : 'false');
-            isNaClCombo = false;
-          }
-
-          // --- MgO组合逻辑 ---
-          if (mgFound && oFound) {
-            const mgPos = new THREE.Vector3();
-            const oPos = new THREE.Vector3();
-            mgEntity.object3D.getWorldPosition(mgPos);
-            oEntity.object3D.getWorldPosition(oPos);
-            const distMgO = mgPos.distanceTo(oPos);
-            if (distMgO < 3) {
-              // 计算中点
-              const midPos = new THREE.Vector3().addVectors(mgPos, oPos).multiplyScalar(0.5);
-              // 转换为本地坐标
-              const scene = document.querySelector('a-scene').object3D;
-              const midPosLocal = midPos.clone();
-              scene.worldToLocal(midPosLocal);
-              // 计算到相机距离
-              const camera = document.querySelector('[camera]').object3D;
-              const cameraPos = new THREE.Vector3();
-              camera.getWorldPosition(cameraPos);
-              const distToCamera = midPos.distanceTo(cameraPos);
-              if (distToCamera < 20) {
-                // 显示MgO_1，隐藏MgO
-                mgoModel.setAttribute('visible', 'false');
-                mgoModel1.setAttribute('visible', 'true');
-                mgoModel1.object3D.position.copy(midPosLocal);
-                currentMgOModel = 'mgo1';
-              } else {
-                // 显示MgO，隐藏MgO_1
-                mgoModel.setAttribute('visible', 'true');
-                mgoModel.object3D.position.copy(midPosLocal);
-                mgoModel1.setAttribute('visible', 'false');
-                currentMgOModel = 'mgo';
-              }
-              mgEntity.setAttribute('visible', 'false');
-              oEntity.setAttribute('visible', 'false');
-              isMgOCombo = true;
-            } else if (isMgOCombo) {
-              mgoModel.setAttribute('visible', 'false');
-              mgoModel1.setAttribute('visible', 'false');
-              mgEntity.setAttribute('visible', 'true');
-              oEntity.setAttribute('visible', 'true');
-              isMgOCombo = false;
-              currentMgOModel = null;
-            }
-          } else if (isMgOCombo) {
-            mgoModel.setAttribute('visible', 'false');
-            mgoModel1.setAttribute('visible', 'false');
-            mgEntity.setAttribute('visible', mgFound ? 'true' : 'false');
-            oEntity.setAttribute('visible', oFound ? 'true' : 'false');
-            isMgOCombo = false;
-            currentMgOModel = null;
-          }
-
-          // --- H2组合逻辑 ---
-          if (h1Found && h2Found) {
-            const h1Pos = new THREE.Vector3();
-            const h2Pos = new THREE.Vector3();
-            h1Entity.object3D.getWorldPosition(h1Pos);
-            h2Entity.object3D.getWorldPosition(h2Pos);
-            const distH1H2 = h1Pos.distanceTo(h2Pos);
-            
-            if (distH1H2 < 3.5) {
-              const midPos = new THREE.Vector3().addVectors(h1Pos, h2Pos).multiplyScalar(0.5);
-              const scene = document.querySelector('a-scene').object3D;
-              const midPosLocal = midPos.clone();
-              scene.worldToLocal(midPosLocal);
-              
-              h2Model.object3D.position.copy(midPosLocal);
-              h2Model.setAttribute('visible', 'true');
-              h1Entity.setAttribute('visible', 'false');
-              h2Entity.setAttribute('visible', 'false');
-              if (!isH2Combo) {
-                showElementInfo(
-                  "太棒了！2个H元素可以组成H2，也就是氢气。在标准状况下，氢气是一种无色、无味、无臭的气体，密度非常小，是最轻的气体，其难溶于水。",
-                  15,
-                  "试试再将一个O原子放在他们中间，看看会发生什么呢？",
-                  5
-                );
-              }
-              isH2Combo = true;
-            } else if (isH2Combo) {
-              h2Model.setAttribute('visible', 'false');
-              h1Entity.setAttribute('visible', 'true');
-              h2Entity.setAttribute('visible', 'true');
-              isH2Combo = false;
-            }
-          } else if (isH2Combo) {
-            h2Model.setAttribute('visible', 'false');
-            h1Entity.setAttribute('visible', h1Found ? 'true' : 'false');
-            h2Entity.setAttribute('visible', h2Found ? 'true' : 'false');
-            isH2Combo = false;
-          }
-
-          // --- O2组合逻辑 ---
-          if (oFound && o2Found) {
-            const oPos = new THREE.Vector3();
-            const o2Pos = new THREE.Vector3();
-            oEntity.object3D.getWorldPosition(oPos);
-            o2Entity.object3D.getWorldPosition(o2Pos);
-            const distOO2 = oPos.distanceTo(o2Pos);
-            
-            if (distOO2 < 3.5) {
-              // 计算中点
-              const midPos = new THREE.Vector3().addVectors(oPos, o2Pos).multiplyScalar(0.5);
-              const scene = document.querySelector('a-scene').object3D;
-              const midPosLocal = midPos.clone();
-              scene.worldToLocal(midPosLocal);
-              
-              o2Model.object3D.position.copy(midPosLocal);
-              o2Model.setAttribute('visible', 'true');
-              oEntity.setAttribute('visible', 'false');
-              o2Entity.setAttribute('visible', 'false');
-              isO2Combo = true;
-            } else if (isO2Combo) {
-              o2Model.setAttribute('visible', 'false');
-              oEntity.setAttribute('visible', 'true');
-              o2Entity.setAttribute('visible', 'true');
-              isO2Combo = false;
-            }
-          } else if (isO2Combo) {
-            o2Model.setAttribute('visible', 'false');
-            oEntity.setAttribute('visible', oFound ? 'true' : 'false');
-            o2Entity.setAttribute('visible', o2Found ? 'true' : 'false');
-            isO2Combo = false;
-          }
-
-          // --- Cl2组合逻辑 ---
-          if (clFound && cl2Found) {
-            const clPos = new THREE.Vector3();
-            const cl2Pos = new THREE.Vector3();
-            clEntity.object3D.getWorldPosition(clPos);
-            cl2Entity.object3D.getWorldPosition(cl2Pos);
-            const distClCl2 = clPos.distanceTo(cl2Pos);
-            
-            if (distClCl2 < 3.5) {
-              // 计算中点
-              const midPos = new THREE.Vector3().addVectors(clPos, cl2Pos).multiplyScalar(0.5);
-              const scene = document.querySelector('a-scene').object3D;
-              const midPosLocal = midPos.clone();
-              scene.worldToLocal(midPosLocal);
-              
-              cl2Model.object3D.position.copy(midPosLocal);
-              cl2Model.setAttribute('visible', 'true');
-              clEntity.setAttribute('visible', 'false');
-              cl2Entity.setAttribute('visible', 'false');
-              isCl2Combo = true;
-            } else if (isCl2Combo) {
-              cl2Model.setAttribute('visible', 'false');
-              clEntity.setAttribute('visible', 'true');
-              cl2Entity.setAttribute('visible', cl2Found ? 'true' : 'false');
-              isCl2Combo = false;
-            }
-          } else if (isCl2Combo) {
-            cl2Model.setAttribute('visible', 'false');
-            clEntity.setAttribute('visible', clFound ? 'true' : 'false');
-            cl2Entity.setAttribute('visible', cl2Found ? 'true' : 'false');
-            isCl2Combo = false;
-          }
-        }
-      });
-      document.querySelector('a-scene').setAttribute('element-combo-check', '');
-
-      // 添加返回函数
-      function goBack() {
-        if (window.wx && window.wx.miniProgram) {
-          // 如果在小程序环境中，调用小程序的返回方法
-          window.wx.miniProgram.navigateBack();
-        } else {
-          // 如果在普通浏览器中，使用历史返回
-          window.history.back();
-        }
-      }
-    </script>
 </body>
 </html> 
