@@ -1,12 +1,9 @@
 Page({
   data: {
-    arUrl: '' // 这里填入你的GitHub Pages URL
+    arUrl: 'https://cdn.jsdelivr.net/gh/bwsss1/ARchemistry_tiaozhuan@main/index.html'
   },
   onLoad: function() {
-    // 设置AR页面的URL
-    this.setData({
-      arUrl: 'https://你的用户名.github.io/仓库名/' // 替换为你的GitHub Pages URL
-    });
+    // URL已经在data中设置好了
   },
   // WebView加载成功
   onWebViewLoad: function(e) {
