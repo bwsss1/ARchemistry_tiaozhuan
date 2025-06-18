@@ -1,0 +1,4 @@
+<view class="container">
+  <!-- 其他内容 -->
+  <button bindtap="goToAR" class="ar-button">进入AR模式</button>
+</view> 
