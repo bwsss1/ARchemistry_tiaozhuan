@@ -357,9 +357,9 @@
           naEntity.setAttribute('visible', 'true');
           showElementInfo(
             "钠（Natrium）是一种金属元素，元素符号是Na，英文名Sodium。在周期表中位于第3周期、第ⅠA族，是碱金属元素的代表，质地柔软，能与水反应生成氢氧化钠，放出氢气，化学性质较活泼。钠元素以盐的形式广泛分布于陆地和海洋中，钠也是人体肌肉组织和神经组织中的重要成分之一。体内钠大约有77～100克，约占体重的0.15%， 其中细胞外液占45%～50%，细胞内9%～10%， 骨骼占40%～47%。",
-            5,
+            3,
             "试试把Cl元素放到它的右侧，看看会发生什么？",
-            5
+            3
           );
         }
         updateFeedback();
@@ -394,9 +394,9 @@
           h1Entity.setAttribute('visible', 'true');
           showElementInfo(
             "这是：氢元素！在元素周期表中位于第一位，符号为 H。氢原子由一个质子和一个电子组成，是结构最简单的原子。",
-            5,
+            3,
             "试试再拿一张氢元素和他放在一起会发生什么！",
-            5
+            3
           );
         }
         updateFeedback();
@@ -416,9 +416,9 @@
           h2Entity.setAttribute('visible', 'true');
           showElementInfo(
             "这是：氢元素！在元素周期表中位于第一位，符号为 H。氢原子由一个质子和一个电子组成，是结构最简单的原子。",
-            5,
+            3,
             "试试再拿一张氢元素和他放在一起会发生什么！",
-            5
+            3
           );
         }
         updateFeedback();
@@ -516,7 +516,7 @@
                 h2oModel.setAttribute('visible', 'false');
                 h2oModel1.setAttribute('visible', 'true');
                 currentH2OModel = 'h2o1';
-                showElementInfo("太棒啦！H2O原来就是我们生活中的水！", 5);
+                showElementInfo("太棒啦！H2O原来就是我们生活中的水！", 3);
               }
               if (midPosWorld) {
                 const scene = document.querySelector('a-scene').object3D;
@@ -529,7 +529,7 @@
                 h2oModel.setAttribute('visible', 'true');
                 h2oModel1.setAttribute('visible', 'false');
                 currentH2OModel = 'h2o';
-                showElementInfo("哇！出现了H2O分子呢，让我们的镜头离得更近一点，看看它是什么把！", 5);
+                showElementInfo("哇！出现了H2O分子呢，让我们的镜头离得更近一点，看看它是什么把！", 3);
               }
               if (midPosWorld) {
                 const scene = document.querySelector('a-scene').object3D;
@@ -664,13 +664,13 @@
                 naclModel1.setAttribute('visible', 'true');
                 naclModel1.object3D.position.copy(midPosLocal);
                 // NaCl_1分子出现时的提示
-                showElementInfo("哈哈！NaCl就是我们生活中的盐啦！", 5);
+                showElementInfo("哈哈！NaCl就是我们生活中的盐啦！", 3);
               } else {
                 naclModel.setAttribute('visible', 'true');
                 naclModel.object3D.position.copy(midPosLocal);
                 naclModel1.setAttribute('visible', 'false');
                 // NaCl分子出现时的提示
-                showElementInfo("是NaCl分子！我们把镜头拉近，看看是他具体是什么吧！", 5);
+                showElementInfo("是NaCl分子！我们把镜头拉近，看看是他具体是什么吧！", 3);
               }
               naEntity.setAttribute('visible', 'false');
               clEntity.setAttribute('visible', 'false');
@@ -763,7 +763,7 @@
               if (!isH2Combo) {
                 showElementInfo(
                   "太棒了！2个H元素可以组成H2，也就是氢气。在标准状况下，氢气是一种无色、无味、无臭的气体，密度非常小，是最轻的气体，其难溶于水。",
-                  5,
+                  3,
                   "试试再将一个O原子放在他们中间，看看会发生什么呢？",
                   3
                 );
